@@ -1,0 +1,20 @@
+/*********************************************
+ * OPL 22.1.1.0 Data
+ * Author: ZZ01OK862
+ * Creation Date: Jul 24, 2023 at 3:54:16 PM
+ *********************************************/
+SheetConnection excelsheet("Jeans_excel.xlsx"); 
+
+// JeanProducts from SheetRead(excelsheet, "Sheet1!A2:A279");
+//JeanProducts= 278;
+JeanProducts from SheetRead(excelsheet, "Sheet1!J2:J2");
+Mean from SheetRead(excelsheet, "Sheet1!B2:B278");
+stock_availability from SheetRead(excelsheet, "Sheet1!C2:C278"); 
+
+comp_1 from SheetRead(excelsheet, "Sheet1!D2:D278");
+comp_2 from SheetRead(excelsheet, "Sheet1!E2:E278");
+comp_3 from SheetRead(excelsheet, "Sheet1!F2:F278"); 
+
+rating from SheetRead(excelsheet, "Sheet1!G2:G278");
+sales from SheetRead(excelsheet, "Sheet1!H2:H278");
+cost from SheetRead(excelsheet, "Sheet1!I2:I278");
