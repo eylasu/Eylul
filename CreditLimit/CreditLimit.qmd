@@ -1,0 +1,400 @@
+---
+title: "Credit Limit"
+format: html
+editor: visual
+author: "Eylül Asuman"
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+library(magrittr)
+library(ISLR2)
+library(dplyr)
+library(corrplot)
+library(GGally)
+library(reshape)
+library(vcd)
+library(mosaic)
+library(pander)
+library(olsrr)
+library(leaps)
+library(Hmisc)
+library(car)
+library(corpcor)
+library(caret)
+library(klaR)
+library(caTools)
+library(tree)
+library(randomForest)
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Credit Limit Dataset
+
+```{r}
+data <- read_csv("CreditLimit.csv") %>%
+  mutate(CLIENTNUM = as.character(CLIENTNUM))
+
+```
+
+```{r,fig.asp=0.614}
+head(data)
+```
+
+```{r,fig.asp=0.614}
+summary(droplevels(data))
+```
+
+```{r}
+summary(data$Credit_Limit)
+```
+
+#### Variables
+
+|                       |                                                                                                                             |
+|------------------|------------------------------------------------------|
+| CLIENTNUM             | Client number. Unique identifier for the customer holding the account.                                                      |
+| Attrition_Flag        | Internal event (customer activity) variable - if the account is closed then 1 else 0                                        |
+| Customer_Age          | Demographic variable - Customer's Age in Years                                                                              |
+| Gender                | Demographic variable - M=Male, F=Female                                                                                     |
+| Dependent_count       | Demographic variable - Number of dependents                                                                                 |
+| Education_Level       | Demographic variable - Educational Qualification of the account holder (example: high school, college graduate, etc.)       |
+| Marital_Status        | Demographic variable - Married, Single, Divorced, Unknown                                                                   |
+| Income_Category       | Demographic variable - Annual Income Category of the account holder (\< \$40K, \$40K - 60K, \$60K - \$80K, \$80K-\$120K, \> |
+| Card_Category         | Product Variable - Type of Card (Blue, Silver, Gold, Platinum)                                                              |
+| Months_on_book        | Period of relationship with bank                                                                                            |
+| Credit_Limit          | Credit Limit on the Credit Card                                                                                             |
+| Total_Trans_Amt       | Total Transaction Amount (Last 12 months)                                                                                   |
+| Total_Trans_Ct        | Total Transaction Count (Last 12 months)                                                                                    |
+| Avg_Utilization_Ratio | Average Card Utilization Ratio                                                                                              |
+
+```{r, fig.asp=1.2}
+p1 <- data %>% group_by(Attrition_Flag) %>%
+  #filter(Credit_Limit>10000) %>%
+  ggplot(aes(x=CLIENTNUM,y=Credit_Limit))+
+  geom_point(aes(color=Attrition_Flag), alpha=0.5)+
+  geom_hline(yintercept=10877, linetype="dashed", color = "salmon2", linewidth=1.)+
+  geom_hline(yintercept=8559, linetype="dashed", color = "black", linewidth=1.1)+
+  geom_hline(yintercept=4343, linetype="dashed", color = "dodgerblue2", linewidth=1.1)+
+  geom_hline(yintercept= 2507, linetype="dashed", color = "yellow", linewidth=1.1)+
+  geom_hline(yintercept= 1438, linetype="dashed", color = "violetred", linewidth=1.1)
+
+p1
+```
+
+```{r}
+favstats(Credit_Limit ~ Attrition_Flag , data=data)
+```
+
+```{r,fig.asp=0.614}
+data %>% ggplot(aes(Credit_Limit))+geom_density(aes(color=Attrition_Flag))
+```
+
+```{r}
+data %>% 
+  group_by(Attrition_Flag) %>%
+  ggplot(aes(x=Credit_Limit, y = Attrition_Flag)) +
+  geom_boxplot(color="orange") +
+  geom_smooth(se=FALSE, method = "lm")
+```
+
+```{r}
+favstats(Credit_Limit ~ Months_on_book   , data=data)
+```
+
+```{r,fig.asp=0.614}
+data %>% 
+  group_by(Attrition_Flag) %>%
+  ggplot(aes(x=Months_on_book, y = Attrition_Flag)) +
+  geom_boxplot(color= "red") +
+  geom_smooth(se=FALSE, method = "lm")
+```
+
+```{r,fig.asp=0.614}
+data %>% ggplot(aes(Months_on_book))+geom_density(aes(color=Attrition_Flag))
+```
+
+```{r}
+favstats(Credit_Limit ~ Education_Level , data=data)
+```
+
+```{r}
+data %>% ggplot(aes(Credit_Limit))+geom_density(aes(color=Education_Level))
+```
+
+```{r}
+favstats(Credit_Limit ~ Gender , data=data)
+```
+
+```{r}
+data %>% ggplot(aes(Credit_Limit))+geom_density(aes(color=Gender))
+```
+
+```{r}
+favstats(Credit_Limit ~ Marital_Status , data=data)
+```
+
+```{r}
+data %>% ggplot(aes(Credit_Limit))+geom_density(aes(color=Marital_Status))
+```
+
+```{r}
+favstats(Credit_Limit ~ Income_Category , data=data)
+```
+
+```{r}
+data %>% ggplot(aes(Credit_Limit))+geom_density(aes(color=Income_Category))
+```
+
+#### Linear Regression
+
+$$
+\text{Credit_Limit} = \beta_0 + \beta_1 (\text{Parameters}) + \varepsilon
+$$
+
+```{r}
+lmcreditlimit <- lm(Credit_Limit ~ . -CLIENTNUM, data)
+summary(lmcreditlimit)
+```
+
+```{r, fig.asp=0.614}
+par(mfrow=c(2,2))
+plot(lmcreditlimit)
+```
+
+Model explains %62.24 of all data.
+
+`Card_Category`, `Income_Category`, `Avg_Utilization_Ratio`, `Total_Trans_Amt` and being married and existing customer are highly related to determine credit card limit. `Dependent_count` and `Gender` provide also meaningful contribution.
+
+```{r, fig.asp=0.914}
+ggplot(data = data, aes(x = Credit_Limit, y = Total_Trans_Amt)) +
+geom_point() +
+stat_smooth(method = "lm", col = "dodgerblue3") +
+theme(panel.background = element_rect(fill = "white"),
+axis.line.x=element_line(),
+axis.line.y=element_line()) +
+ggtitle("Linear Model Fitted to Data")
+```
+
+#### Better Model?
+
+```{r}
+Best_Subset <-
+    regsubsets(Credit_Limit ~ . -CLIENTNUM,
+               data =data,
+               nbest = 1,      # 1 best model for each number of predictors
+               nvmax = NULL,    # NULL for no limit on number of variables
+               force.in = NULL, force.out = NULL,
+               method = "exhaustive")
+summary_best_subset <- summary(Best_Subset)
+as.data.frame(summary_best_subset$outmat)
+```
+
+```{r}
+which.max(summary_best_subset$adjr2)
+```
+
+```{r}
+summary_best_subset$which[16,]
+```
+
+```{r}
+lmcreditlimitbetter <- lm(Credit_Limit ~ Attrition_Flag + Customer_Age + Gender + Dependent_count+  Marital_Status + Income_Category + Card_Category + Total_Trans_Amt + Avg_Utilization_Ratio, data)
+summary(lmcreditlimitbetter)
+```
+
+The model increases its explainability a bit but not enough.
+
+#### Correlation with numeric values
+
+```{r}
+significantVariables_numeric <- data %>% dplyr::select(c(11, 3, 5, 12, 14))
+```
+
+```{r}
+res <- rcorr(as.matrix(significantVariables_numeric)) # rcorr() accepts matrices only
+
+# display p-values (rounded to 3 decimals)
+round(res$P, 3)
+```
+
+```{r}
+ggpairs(significantVariables_numeric[, c("Customer_Age", "Dependent_count", "Total_Trans_Amt", "Avg_Utilization_Ratio" )])
+```
+
+```{r}
+test <- cor.test(significantVariables_numeric$Avg_Utilization_Ratio,significantVariables_numeric$Customer_Age)
+test
+```
+
+The *p*-value of the correlation test between these 2 variables is 0.7029 . At the 5% significance level, we do not reject the null hypothesis of no correlation. We therefore conclude that we do not reject the hypothesis that there is no linear relationship between the 2 variables.
+
+This test proves that even if the correlation coefficient is different from 0 (the correlation is 0.004363341 in the sample), it is actually not significantly different from 0 in the population.
+
+#### Variance Inflation Factor (VIF)
+
+A measure of the impact of collinearity on the precision of estimation of a coefficient.
+
+$$
+\text{Variance Inflation Factor} = 1/ (1 –R^2) = 1 / \text{Tolerance}
+$$
+
+```{r}
+vif_values <-  vif(lmcreditlimitbetter)
+vif_values
+```
+
+```{r}
+barplot(vif_values, main = "VIF Values", horiz = TRUE, col = "steelblue") 
+abline(v = 5, lwd = 3, lty = 2)    #add vertical line at 5 as after 5 there is severe correlation
+```
+
+GVIF is calculated instead of VIF when one of the degrees of freedoms is different from 1.
+
+As table suggests, Income_Category and Gender might be problematic.
+
+```{r}
+summary(lmcreditlimitbetter)$r.squared
+```
+
+```{r}
+lmcreditlimit3 <- update(lmcreditlimitbetter, . ~ . - Gender)
+summary(lmcreditlimit3)$r.squared
+```
+
+```{r}
+lmcreditlimit4 <- update(lmcreditlimitbetter, . ~ . - Income_Category)
+summary(lmcreditlimit4)$r.squared
+```
+
+```{r}
+lmcreditlimit5 <- update(lmcreditlimitbetter, . ~ . - Gender-Income_Category-Marital_Status)
+summary(lmcreditlimit5)$r.squared
+```
+
+In this case, it seems that the first apparent problem is with the `Gender` variable in the model. We might try to correct this by excluding the this predictor; by doing so, we see that the $R^2$ value of the model will not decrease by considerable value. It implies that its contribution is already being provided by other predictor so does not need to retain in the model.
+
+Not as much as `Gender`, but `Income_Category` stays at the same position. In fact, both of them can be eliminated.
+
+```{r}
+summary(lmcreditlimit5)
+```
+
+In this model all predictors contributes significantly and the data is explained by %40.97 and the p-value is still quite low.
+
+#### Tolerance and VIF
+
+```{r}
+ols_vif_tol(lmcreditlimit)
+```
+
+-   Tolerance of \<0.1 might indicate multicollinearity.
+
+-   VIF exceeding 5 requires further investigation, whereas the VIF higher than 10 directly indicates multicollinearity. 
+
+-   Ideally, VIF should be lower than 3.
+
+    As follows these steps, only `Income_Category - Less than $40K` needs to be further investigated.
+
+```{r}
+data2 <- data %>% filter(Income_Category != "Less than $40K")
+data2 %>% filter(Marital_Status != "Married")                          
+
+lmcreditlimit2 <- lm(Credit_Limit ~ . -CLIENTNUM-Months_on_book - Total_Ct_Chng_Q4_Q1 -Customer_Age -Dependent_count -Education_Level , data2)
+summary(lmcreditlimit2)
+```
+
+As it can be seen Adjusted R-squared is 0.5959 in **lmcreditlimit2** which is higher than **lmcreditlimit5** at previous part. So that, `Income_Category - Less than $40K` may cause the collinearity and just removing it by holding other income types will explain better .
+
+#### AIC and BIC
+
+AIC (Akaike, 1974) and the Bayesian information criterion -- BIC (Schwarz, 1978) are measures of the goodness of fit of the linear regression model and can also be used for model selection (depend on the maximised value of the likelihood function L for the estimated model).
+
+```{r}
+AIC(lmcreditlimit2)
+BIC(lmcreditlimit2)
+```
+
+#### Model Accuracy
+
+```{r}
+
+set.seed(100)
+  
+# dividing the complete dataset into 2 parts having ratio of 70% and 30%
+spl = sample.split(data2$Credit_Limit, SplitRatio = 0.7)
+
+train = subset(data2, spl == TRUE, select=-CLIENTNUM)
+test = subset(data2, spl == FALSE, select=-CLIENTNUM)
+  
+print(dim(train))
+print(dim(test))
+  
+
+model_lm = lm(Credit_Limit ~ .,data = train, maxit = 100)
+```
+
+```{r}
+predictTest = as.factor(predict(model_lm, test))
+```
+
+```{r}
+actuals_preds <- data.frame(cbind(actuals=test$Credit_Limit, predicteds=predictTest)) 
+```
+
+```{r}
+correlation_accuracy <- cor(actuals_preds)
+correlation_accuracy
+```
+
+A higher **correlation accuracy** implies that the actuals and predicted values have similar directional movement, i.e. when the actuals values increase the predicted values also increase.
+
+#### Decision Tree
+
+```{r}
+tree.creditlimit <- tree(Credit_Limit ~ unlist(Attrition_Flag)+unlist(Marital_Status)+unlist(Card_Category)+unlist(Income_Category)+unlist(Avg_Utilization_Ratio)+unlist(Total_Trans_Amt) , data = train)
+
+summary(tree.creditlimit)
+```
+
+```{r,fig.width=15, fig.height=10}
+plot(tree.creditlimit)
+text(tree.creditlimit, pretty=0)
+```
+
+**Single-predictor tree:** This indicates that the selected predictor which is `Avg_Utilization_Ratio` in this case is much more significant than the others. This may imply that there is no need to other predictors somehow. On the other hand, this may occur when the dataset is not complex, a single variable can help readers to understand the data. Last but not least, a poorly constructed dataset can also cause this situation.
+
+#### Random Forest
+
+```{r}
+tree.creditlimit2 <- randomForest(Credit_Limit ~ . , data = train, importance= TRUE)
+tree.creditlimit2
+```
+
+```{r}
+importance(tree.creditlimit2)
+```
+
+```{r, fig.asp=0.614}
+varImpPlot(tree.creditlimit2)
+```
+
+As we estimated, `Avg_Utilization_Ratio` is the pioneer for explaining the all dataset. `Card_Category`and `Income_Category` are also important for the model.
+
+```{r}
+lmlast <- lm(Credit_Limit ~Avg_Utilization_Ratio + Card_Category+ Income_Category, data)
+summary(lmlast)
+```
+
+Indeed, Adjusted R\^2 increased with these 3 variables and all predictors have very low p-value.
+
+```{r, fig.asp=0.614}
+par(mfrow=c(2,2))
+plot(lmlast)
+
+```
